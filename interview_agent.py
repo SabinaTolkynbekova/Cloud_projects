@@ -25,6 +25,12 @@ class ProductInterviewAgent:
         self.chat = self.model.start_chat(history=[])
         self.conversation_history = []
 
+    def load_company_report(self, filepath):
+    """Loads a company report as context for the model."""
+    with open(filepath, 'r', encoding='utf-8') as f:
+        text = f.read()
+    self.conversation_history.append(f"Company Report:\n{text}")
+
     def start_interview(self):
         """Conducts the interview using the 5 Whys technique."""
         print(Fore.CYAN + "\n=== Gemini Product Manager Agent ===")
