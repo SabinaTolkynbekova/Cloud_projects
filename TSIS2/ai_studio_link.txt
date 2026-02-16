@@ -1,0 +1,4 @@
+The prompt was used in Antigravity (Path A).  
+There is no public link available. The full text of system_prompt.txt is included.  
+The JSON output from the compliance check is saved in compliance_report.json.  
+и это тоже в ai_studio_link.txt
