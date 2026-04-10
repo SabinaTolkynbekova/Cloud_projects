@@ -1,7 +1,7 @@
 import os
 import time
 import streamlit as st
-import google.generativeai as genai
+from openai import OpenAI
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -9,8 +9,8 @@ load_dotenv()
 SYSTEM_PROMPT_FILE = "system_prompt.txt"
 FALLBACK_PHRASE    = "Уточните у администратора"
 
-INPUT_PRICE_PER_M  = 0.075
-OUTPUT_PRICE_PER_M = 0.30
+INPUT_PRICE_PER_M  = 0.150
+OUTPUT_PRICE_PER_M = 0.600
 
 def load_system_prompt() -> str:
     try:
@@ -26,23 +26,31 @@ def get_answer(api_key: str, question: str, faq_content: str,
                system_prompt_template: str) -> dict:
     start = time.time()
     try:
-        genai.configure(api_key=api_key)
+        client = OpenAI(api_key=api_key)
         system_instruction = system_prompt_template.replace("{faq_content}", faq_content)
-        model = genai.GenerativeModel(
-            model_name="gemini-2.5-flash",
-            system_instruction=system_instruction,
-            generation_config=genai.GenerationConfig(temperature=0.0),
+        
+        response = client.chat.completions.create(
+            model="gpt-4o-mini",
+            messages=[
+                {"role": "system", "content": system_instruction},
+                {"role": "user", "content": question}
+            ],
+            temperature=0.0,
         )
-        response = model.generate_content(question)
         latency_ms = int((time.time() - start) * 1000)
-        answer = response.text.strip() if (hasattr(response, "text") and response.text) \
-                 else FALLBACK_PHRASE
+        
+        if response.choices and response.choices[0].message.content:
+            answer = response.choices[0].message.content.strip()
+        else:
+            answer = FALLBACK_PHRASE
+            
         try:
-            in_tok  = response.usage_metadata.prompt_token_count
-            out_tok = response.usage_metadata.candidates_token_count
+            in_tok  = response.usage.prompt_tokens
+            out_tok = response.usage.completion_tokens
         except Exception:
             in_tok  = estimate_tokens(system_instruction + question)
             out_tok = estimate_tokens(answer)
+            
         return {
             "answer":        answer,
             "input_tokens":  in_tok,
@@ -126,14 +134,14 @@ def main():
     st.markdown("""
     <div class="brand-header">
         <h1>🏥 SME FAQ Assistant</h1>
-        <p>AI-powered customer support · Gemini 2.5 Flash · Built for SME B2B deployment</p>
+        <p>AI-powered customer support · GPT-4o-mini · Built for SME B2B deployment</p>
     </div>
     """, unsafe_allow_html=True)
 
     with st.sidebar:
         st.markdown("### ⚙️ Configuration")
-        env_api_key    = os.getenv("GEMINI_API_KEY", "")
-        manual_api_key = st.text_input("Gemini API Key", type="password", placeholder="Paste key if not in .env")
+        env_api_key    = os.getenv("OPENAI_API_KEY", "")
+        manual_api_key = st.text_input("OpenAI API Key", type="password", placeholder="Paste key if not in .env")
         api_key = env_api_key or manual_api_key
         if env_api_key:
             st.success("✅ API key loaded from .env")
@@ -172,7 +180,7 @@ def main():
         st.markdown("<small style='color:#546e7a;'><b>D2C Monitoring Active</b><br>• Token cost tracked per query<br>• Fallback rate (&lt;20% = healthy)<br>• Errors logged in real time</small>", unsafe_allow_html=True)
 
     if not api_key:
-        st.error("🔑 Please provide a Gemini API key in `.env` or the sidebar.")
+        st.error("🔑 Please provide an OpenAI API key in `.env` or the sidebar.")
         st.stop()
 
     faq_content = ""
